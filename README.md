@@ -6,7 +6,7 @@
 
 **在线地址**：https://p002-life-species-test.vercel.app
 
-首页和整条答题流程可以直接体验；最后一题的提交、结果分享页和物种图鉴需要后端数据库，见[环境变量](#环境变量)。
+整条流程现在就能走完（答题 → 出结果 → 存分享长图），未配数据库时走[演示模式](#演示模式无需数据库)；只有物种分布图鉴和「给别人打开的永久链接」需要后端数据库，见[环境变量](#环境变量)。
 
 ![首页预览](./assets/homepage-preview.png)
 
@@ -29,8 +29,10 @@
 - **拿到确定的结果**：24 个物种、18 个隐藏维度，评分由 `life_species_calibrated_scorer_v1.mjs` 算出——同一份答案永远得到同一个结果，不由大模型临场生成。
 - **分享永久链接**：结果页地址形如 `/r/{share_code}`，任何人打开都看到同一份结果。
 - **存成图片**：结果页可生成分享卡片并「保存到相册」。
-- **给结果打分**：结果页的反馈会写入数据库，用于评估题目准不准。
+- **给结果打分**：结果页有四档反馈（完全不像 → 太准了）；注意目前只有界面选择，`POST /api/runs/{runId}/feedback` 接口已实现但前端尚未调用，评分不会入库。
 - **看总体分布**：首页的「物种分布图鉴」弹窗展示所有人的物种占比。
+- **中英切换**：页面右上角「中文 / English」，默认跟随系统语言，选过一次后记住选择。详见[多语言](#多语言)。
+- **没接数据库也能看到结果**：提交时若数据库不可用，会自动改走本机通道——用同一个正式评分器当场算出主物种与副物种，结果页照常展示、照常能生成分享长图，只是不落库、关掉标签页就没了、也没有永久链接。结果页顶部会显示「演示模式」提示。详见[演示模式](#演示模式无需数据库)。
 
 ## 快速开始
 
@@ -41,7 +43,7 @@ pnpm install
 pnpm dev
 ```
 
-打开 http://localhost:5000 。不配数据库时，首页与 24 题答题页都能正常走完，只有最后一题提交会失败（`POST /api/runs/start` 返回 500）。要跑完整流程，先按下一节配好 Supabase。
+打开 http://localhost:5000 。不配数据库也能整条走完：首页、24 题、出结果、生成分享长图都正常（走[演示模式](#演示模式无需数据库)），只有「物种分布图鉴」打不开。要拿到可分享给他人的永久链接和图鉴，先按下一节配好 Supabase。
 
 生产模式启动：
 
@@ -49,6 +51,23 @@ pnpm dev
 pnpm build
 COZE_PROJECT_ENV=PROD pnpm start   # 同样监听 5000 端口
 ```
+
+## 多语言
+
+- **默认跟随系统语言**：浏览器语言以 `zh` 开头显示中文，其余显示英文。
+- **手动切换**：页面右上角「中文 / English」。选择写入 `localStorage` 的 `life_species_locale`，跨页面记住，同时把 `<html lang>` 同步为 `zh-CN` / `en`。
+- **覆盖范围**：首页、24 道题目与全部选项、答题页按钮与报错提示、结果页各栏位标题与分享文案、物种分布图鉴。
+- **实现位置**：`src/i18n/` —— `locale.tsx`（语言状态与检测）、`ui.ts`（界面文案）、`questions.ts`（中英题库）、`species-en.ts`（24 条物种英文文案）、`LanguageToggle.tsx`（切换控件）。
+- **物种英文是展示层覆盖**：数据库 `species_content` 仍只存中文正式文案，英文按 `species_key` 从 `species-en.ts` 取，未收录的 key 自动回落中文。图片文件名、`species_key` 与评分算法与语言无关——同一份答案在中英文下得到同一个物种。
+
+## 演示模式（无需数据库）
+
+`POST /api/runs/preview` 是一条不碰数据库的通道，实现只有两个文件：`src/app/api/runs/preview/route.ts` 和 `src/lib/preview-result.ts`。
+
+- 评分仍然调用正式评分器 `life_species_calibrated_scorer_v1.mjs`，没有任何第二套算法；物种文案取自正式映射文件 `life_species_supabase_seed_manifest_v1.json`，图片路径与 `species_key` 都是正式值。
+- 答题页先按正常流程调 `/api/runs/start` + `/api/runs/{runId}/complete`；只有这条链路报错时才回退到 preview，并把结果暂存到 `sessionStorage.life_species_preview`，然后跳 `/r/preview`。
+- 因此演示模式下结果页能看、能存分享长图，但**没有永久链接**（页面会隐藏「复制结果链接」并显示演示模式提示），关掉标签页结果就没了。
+- 数据库配好之后这条回退不会再触发：正常链路成功就直接走 `/r/{share_code}`。
 
 ## 环境变量
 
@@ -71,6 +90,7 @@ COZE_PROJECT_ENV=PROD pnpm start   # 同样监听 5000 端口
 | `/` | 首页 | 否（图鉴弹窗除外） |
 | `/test` | 24 题答题 | 提交时需要 |
 | `/r/{share_code}` | 永久结果页 | 是 |
+| `POST /api/runs/preview` | 本机算结果，不写库（数据库未接入时的回退通道） | 否 |
 | `POST /api/runs/start` | 开一轮测试，返回 `runId` | 是 |
 | `POST /api/runs/{runId}/complete` | 提交答案并落库、生成分享码 | 是 |
 | `POST /api/runs/{runId}/feedback` | 保存用户对结果的打分 | 是 |
@@ -146,8 +166,9 @@ pnpm build                                        # next build + tsup 打包 src
 ## 已知限制
 
 - 仓库不含建表 SQL 与迁移文件，数据库需自行按提示词建立。
+- 中文物种文案在数据库、英文在 `src/i18n/species-en.ts`，两处需人工同步；新增或改写物种时要同时更新。
 - 24 张 PNG 合计约 38 MB，全部作为静态资源直出，未做压缩或响应式尺寸。
-- 私有交付包，未附带开源 License。
+- 公开仓库，未附带开源 License——别人可以看，但不构成授权复用。
 - 依赖扣子平台的运行时（`coze-coding-dev-sdk` 的上报包装、`coze_workload_identity` 取密钥）在非扣子环境下会自动跳过，凭据需按上面的环境变量自行提供。
 
 ## 详细文档

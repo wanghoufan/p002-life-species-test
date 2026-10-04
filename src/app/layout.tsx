@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inspector } from 'react-dev-inspector';
+import { LocaleProvider } from '@/i18n/locale';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -25,7 +26,7 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className="antialiased min-h-screen bg-[#FFF8F0] text-[#333]">
         <Inspector />
-        {children}
+        <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>
   );

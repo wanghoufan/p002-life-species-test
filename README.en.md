@@ -6,7 +6,7 @@
 
 **Live site**: https://p002-life-species-test.vercel.app
 
-The homepage and the whole quiz flow work right now; submitting the last question, the shareable result page and the species distribution view need a backend database — see [Environment variables](#environment-variables).
+The whole flow works right now (quiz → result → export a share image), running in [demo mode](#demo-mode-no-database-required) when no database is configured; only the species distribution view and permanent links other people can open need a backend database — see [Environment variables](#environment-variables).
 
 ![Homepage preview](./assets/homepage-preview.png)
 
@@ -29,8 +29,10 @@ Who it suits: people who want to take the quiz; people who want to rebuild the p
 - **Get a stable result**: 24 species across 18 hidden dimensions, scored by `life_species_calibrated_scorer_v1.mjs` — the same answers always produce the same result, with no language model improvising the verdict.
 - **Share a permanent link**: result URLs look like `/r/{share_code}` and show the same result to anyone.
 - **Save an image**: the result page renders a share card you can save to your photo library.
-- **Rate your result**: feedback on the result page is stored in the database to judge how accurate the questions are.
+- **Rate your result**: the result page offers four accuracy ratings (Not at all → Spot on). Note that only the in-page selection works today — `POST /api/runs/{runId}/feedback` exists but the frontend does not call it yet, so ratings are not stored.
 - **Browse the distribution**: a modal on the homepage shows how the population splits across species.
+- **Switch language**: "中文 / English" in the top-right corner, defaulting to your browser language. See [Languages](#languages).
+- **See a result without a database**: if the database is unavailable at submit time, the app automatically falls back to an on-device path — the same official scorer computes your main and side species on the spot, the result page renders normally and can still export a share image, but nothing is stored, the result is gone when you close the tab, and there is no permanent link. The result page shows a demo-mode notice. See [Demo mode](#demo-mode-no-database-required).
 
 ## Quick start
 
@@ -41,7 +43,7 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:5000 . Without a database, the homepage and all 24 questions still work end to end; only the final submit fails (`POST /api/runs/start` returns 500). To run the full flow, configure Supabase as described below.
+Open http://localhost:5000 . Everything works without a database: homepage, all 24 questions, the result and the exported share image (via [demo mode](#demo-mode-no-database-required)); only the species distribution view is unavailable. To get permanent links other people can open plus the distribution view, configure Supabase as described below.
 
 Start in production mode:
 
@@ -49,6 +51,23 @@ Start in production mode:
 pnpm build
 COZE_PROJECT_ENV=PROD pnpm start   # also listens on port 5000
 ```
+
+## Languages
+
+- **Follows the browser by default**: anything starting with `zh` renders Chinese, everything else renders English.
+- **Manual switch**: "中文 / English" in the top-right corner. The choice is stored in `localStorage` under `life_species_locale`, survives navigation between pages, and keeps `<html lang>` in sync as `zh-CN` / `en`.
+- **Coverage**: homepage, all 24 questions and every option, quiz buttons and error messages, every result-page label and share string, and the distribution modal.
+- **Where it lives**: `src/i18n/` — `locale.tsx` (state and detection), `ui.ts` (interface copy), `questions.ts` (bilingual question bank), `species-en.ts` (English copy for all 24 species), `LanguageToggle.tsx` (the switcher).
+- **English species copy is a presentation overlay**: the `species_content` table keeps storing the official Chinese copy, and English is looked up by `species_key` from `species-en.ts`, falling back to Chinese for any key not covered. Image filenames, `species_key` values and the scoring algorithm are language-independent — the same answers yield the same species in either language.
+
+## Demo mode (no database required)
+
+`POST /api/runs/preview` is a path that never touches the database; it consists of two files: `src/app/api/runs/preview/route.ts` and `src/lib/preview-result.ts`.
+
+- Scoring still calls the official `life_species_calibrated_scorer_v1.mjs` — there is no second implementation anywhere; species copy comes from the authoritative `life_species_supabase_seed_manifest_v1.json`, with the real image paths and `species_key` values.
+- The quiz page always tries the normal flow first (`/api/runs/start` + `/api/runs/{runId}/complete`). Only when that chain fails does it fall back to preview, stashing the payload in `sessionStorage.life_species_preview` and navigating to `/r/preview`.
+- So in demo mode the result page works and can export a share image, but there is **no permanent link** (the page hides "Copy result link" and shows the demo notice) and the result is lost once the tab closes.
+- Once a database is configured the fallback never fires: a successful normal run goes straight to `/r/{share_code}`.
 
 ## Environment variables
 
@@ -71,6 +90,7 @@ The `COZE_` prefix is historical: these key names were inherited from the ones t
 | `/` | Homepage | No (except the distribution modal) |
 | `/test` | 24-question quiz | On submit |
 | `/r/{share_code}` | Permanent result page | Yes |
+| `POST /api/runs/preview` | Compute a result on the spot without writing to the database (fallback when no database is configured) | No |
 | `POST /api/runs/start` | Start a run, return `runId` | Yes |
 | `POST /api/runs/{runId}/complete` | Store answers and mint the share code | Yes |
 | `POST /api/runs/{runId}/feedback` | Save the user's rating of their result | Yes |
@@ -146,8 +166,9 @@ Hard rules for an AI coding platform or a second developer; the prompt v1.3 rema
 ## Known limitations
 
 - No table DDL or migrations in the repository; you create the database yourself following the prompt.
+- Chinese species copy lives in the database while the English copy lives in `src/i18n/species-en.ts`; the two must be kept in sync by hand whenever a species is added or rewritten.
 - The 24 PNGs total roughly 38 MB and are served as-is, with no compression or responsive sizing.
-- Private delivery package; no open-source license is attached.
+- Public repository with no open-source license attached — people may read it, but that is not permission to reuse.
 - COZE runtime integrations (the reporting wrapper from `coze-coding-dev-sdk`, and key lookup through `coze_workload_identity`) are skipped automatically off COZE, so credentials must be supplied via the variables above.
 
 ## Further reading

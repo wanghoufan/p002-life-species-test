@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useLocale } from '@/i18n/locale';
+import { UI, fmt } from '@/i18n/ui';
+import { speciesName } from '@/i18n/species-en';
 
 interface SpeciesStat {
   speciesKey: string;
@@ -26,15 +29,6 @@ const familyColor = (family: string) => {
   return map[family] || '#E8E0D8';
 };
 
-const familyLabel = (family: string) => {
-  const map: Record<string, string> = {
-    social: '社交系',
-    food: '美食系',
-    lifestyle: '生活系',
-  };
-  return map[family] || family;
-};
-
 export default function StatsModal({
   open,
   onClose,
@@ -42,9 +36,20 @@ export default function StatsModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { locale } = useLocale();
+  const t = UI[locale].stats;
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const familyLabel = (family: string) => {
+    const map: Record<string, string> = {
+      social: t.familySocial,
+      food: t.familyFood,
+      lifestyle: t.familyLifestyle,
+    };
+    return map[family] || family;
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -53,13 +58,13 @@ export default function StatsModal({
     setError('');
     fetch('/api/stats')
       .then((res) => {
-        if (!res.ok) throw new Error('加载失败');
+        if (!res.ok) throw new Error(t.loadFail);
         return res.json();
       })
       .then((data) => setStats(data))
       .catch((e: any) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [open, stats]);
+  }, [open, stats, t]);
 
   if (!open) return null;
 
@@ -75,10 +80,10 @@ export default function StatsModal({
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="text-lg font-black text-[#2D2D2D]">物种分布图鉴</h2>
+            <h2 className="text-lg font-black text-[#2D2D2D]">{t.title}</h2>
             {stats && (
               <p className="text-xs text-[#888] mt-0.5">
-                共 {stats.total} 位小伙伴完成了测试
+                {fmt(t.total, { n: stats.total })}
               </p>
             )}
           </div>
@@ -95,7 +100,7 @@ export default function StatsModal({
         {loading && (
           <div className="text-center py-12">
             <div className="w-8 h-8 border-2 border-[#2D2D2D] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-[#888]">加载中...</p>
+            <p className="text-sm text-[#888]">{t.loading}</p>
           </div>
         )}
 
@@ -109,52 +114,55 @@ export default function StatsModal({
         {/* Species grid */}
         {stats && stats.species.length > 0 && (
           <div className="space-y-3">
-            {stats.species.map((s) => (
-              <div
-                key={s.speciesKey}
-                className="flex items-center gap-3 bg-white rounded-2xl p-3 shadow-sm border border-[#E8E0D8]"
-              >
-                <div className="w-12 h-12 rounded-xl bg-[#FFF8F0] flex-shrink-0 overflow-hidden border border-[#E8E0D8]">
-                  <img
-                    src={s.imageUrl}
-                    alt={s.name}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-sm text-[#2D2D2D] truncate">{s.name}</p>
-                    <span
-                      className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                      style={{ backgroundColor: familyColor(s.family), color: '#2D2D2D' }}
-                    >
-                      {familyLabel(s.family)}
-                    </span>
+            {stats.species.map((s) => {
+              const name = speciesName(s.speciesKey, s.name, locale);
+              return (
+                <div
+                  key={s.speciesKey}
+                  className="flex items-center gap-3 bg-white rounded-2xl p-3 shadow-sm border border-[#E8E0D8]"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-[#FFF8F0] flex-shrink-0 overflow-hidden border border-[#E8E0D8]">
+                    <img
+                      src={s.imageUrl}
+                      alt={name}
+                      className="w-full h-full object-contain"
+                    />
                   </div>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-[#F0ECE6] rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${s.percentage}%`,
-                          backgroundColor: familyColor(s.family),
-                        }}
-                      />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-sm text-[#2D2D2D] truncate">{name}</p>
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                        style={{ backgroundColor: familyColor(s.family), color: '#2D2D2D' }}
+                      >
+                        {familyLabel(s.family)}
+                      </span>
                     </div>
-                    <span className="text-xs text-[#888] font-medium flex-shrink-0">
-                      {s.percentage}% · {s.count}人
-                    </span>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-[#F0ECE6] rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${s.percentage}%`,
+                            backgroundColor: familyColor(s.family),
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs text-[#888] font-medium flex-shrink-0">
+                        {fmt(t.countLine, { pct: s.percentage, n: s.count })}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
         {/* Empty state */}
         {stats && stats.species.length === 0 && (
           <div className="text-center py-8">
-            <p className="text-sm text-[#999]">还没有人完成测试，快来当第一个吧！</p>
+            <p className="text-sm text-[#999]">{t.empty}</p>
           </div>
         )}
       </div>

@@ -5,6 +5,10 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { toPng } from 'html-to-image';
 import StatsModal from '@/components/StatsModal';
+import { useLocale } from '@/i18n/locale';
+import { UI, fmt } from '@/i18n/ui';
+import { localizeSpecies } from '@/i18n/species-en';
+import LanguageToggle from '@/i18n/LanguageToggle';
 
 interface Species {
   species_key: string;
@@ -34,6 +38,8 @@ interface ResultData {
 export default function ResultPage() {
   const params = useParams();
   const shareCode = params.shareCode as string;
+  const { locale, ready } = useLocale();
+  const t = UI[locale];
   const [result, setResult] = useState<ResultData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -52,16 +58,35 @@ export default function ResultPage() {
 
   useEffect(() => {
     if (!shareCode) return;
+
+    if (shareCode === 'preview') {
+      const raw = sessionStorage.getItem('life_species_preview');
+      if (raw) {
+        try {
+          setResult(JSON.parse(raw));
+          setError('');
+          setLoading(false);
+          return;
+        } catch {
+          // fall through to the expired state
+        }
+      }
+      setResult(null);
+      setError(t.result.previewExpired);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     fetch(`/api/results/${shareCode}`)
       .then(res => {
-        if (!res.ok) throw new Error('结果未找到');
+        if (!res.ok) throw new Error(t.result.notFound);
         return res.json();
       })
       .then(data => setResult(data))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [shareCode]);
+  }, [shareCode, t]);
 
   const handleFeedback = async (rating: number) => {
     setFeedback(rating);
@@ -82,12 +107,17 @@ export default function ResultPage() {
       });
       setShareImage(dataUrl);
     } catch (e: any) {
-      setShareError('生成失败，请重试');
+      setShareError(t.result.shareFail);
       console.error('Share image error:', e);
     } finally {
       setShareLoading(false);
     }
-  }, []);
+  }, [t]);
+
+  const shareFileName = useCallback(
+    () => `${t.result.filePrefix}-${result?.mainSpecies?.name || 'result'}.png`,
+    [t, result],
+  );
 
   const handleDownload = useCallback(async () => {
     if (!shareImage) return;
@@ -96,7 +126,7 @@ export default function ResultPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `生活物种-${result?.mainSpecies?.name || 'result'}.png`;
+      a.download = shareFileName();
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -105,17 +135,17 @@ export default function ResultPage() {
       // Fallback: open in new tab
       window.open(shareImage, '_blank');
     }
-  }, [shareImage, result]);
+  }, [shareImage, shareFileName]);
 
   const handleShare = useCallback(async () => {
     if (!shareImage) return;
     try {
       const blob = await (await fetch(shareImage)).blob();
-      const file = new File([blob], `生活物种-${result?.mainSpecies?.name || 'result'}.png`, { type: 'image/png' });
+      const file = new File([blob], shareFileName(), { type: 'image/png' });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({
-          title: '我的生活物种',
-          text: `我是「${result?.mainSpecies?.name}」！来测测你是什么生活物种？`,
+          title: t.result.shareTitle,
+          text: fmt(t.result.shareText, { name: result?.mainSpecies?.name ?? '' }),
           files: [file],
         });
       } else {
@@ -127,16 +157,16 @@ export default function ResultPage() {
         handleDownload();
       }
     }
-  }, [shareImage, result, handleDownload]);
+  }, [shareImage, result, handleDownload, shareFileName, t]);
 
-  if (!mounted) return null;
+  if (!mounted || !ready) return null;
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FFF8F0] flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-[#2D2D2D] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm text-[#888]">加载中...</p>
+          <p className="text-sm text-[#888]">{t.result.loading}</p>
         </div>
       </div>
     );
@@ -147,17 +177,18 @@ export default function ResultPage() {
       <div className="min-h-screen bg-[#FFF8F0] flex items-center justify-center px-6">
         <div className="text-center">
           <p className="text-lg mb-2">😕</p>
-          <p className="text-sm text-[#888] mb-4">{error || '结果未找到'}</p>
+          <p className="text-sm text-[#888] mb-4">{error || t.result.notFound}</p>
           <Link href="/test" className="text-sm text-[#2D2D2D] font-medium underline">
-            去测测我的生活物种
+            {t.result.goTest}
           </Link>
         </div>
       </div>
     );
   }
 
-  const main = result.mainSpecies;
-  const secondaries = result.secondarySpecies;
+  const main = localizeSpecies(result.mainSpecies, locale);
+  const secondaries = result.secondarySpecies.map(s => localizeSpecies(s, locale));
+  const isPreview = shareCode === 'preview';
 
   const safeTags = (v: any): string[] => (Array.isArray(v) ? v : []);
   const summonTags = safeTags(main?.summon_tags);
@@ -165,6 +196,8 @@ export default function ResultPage() {
 
   return (
     <div className="min-h-screen bg-[#FFF8F0] max-w-[480px] mx-auto px-5 py-8">
+      <LanguageToggle />
+
       {/* === Capture Area: everything inside is what gets screenshotted === */}
       <div ref={captureRef}>
         {/* 1. Main species image */}
@@ -193,7 +226,7 @@ export default function ResultPage() {
         {/* 4. Two secondary species */}
         {secondaries.length > 0 && (
           <div className="mb-6">
-            <p className="text-xs text-[#888] font-medium mb-3 text-center">副物种</p>
+            <p className="text-xs text-[#888] font-medium mb-3 text-center">{t.result.secondaryLabel}</p>
             <div className="flex gap-3 justify-center">
               {secondaries.map((s, i) => (
                 <div key={i} className="bg-white rounded-2xl p-3 shadow-sm border border-[#E8E0D8] text-center w-32">
@@ -210,14 +243,14 @@ export default function ResultPage() {
 
         {/* 5. Buff */}
         <div className="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-[#E8E0D8]">
-          <p className="text-xs font-bold text-[#888] mb-1">🎯 生活 Buff</p>
+          <p className="text-xs font-bold text-[#888] mb-1">{t.result.sectionBuff}</p>
           <p className="text-sm text-[#333] leading-relaxed">{main.buff}</p>
         </div>
 
         {/* 6. Summon tags */}
         {summonTags.length > 0 && (
           <div className="mb-3">
-            <p className="text-xs font-bold text-[#888] mb-2">📢 如何召唤我</p>
+            <p className="text-xs font-bold text-[#888] mb-2">{t.result.sectionSummon}</p>
             <div className="flex flex-wrap gap-1.5">
               {summonTags.map((tag, i) => (
                 <span key={i} className="px-2.5 py-1 bg-[#FFD1DC] text-[#2D2D2D] rounded-full text-[11px] font-medium">
@@ -231,7 +264,7 @@ export default function ResultPage() {
         {/* 7. Food tags */}
         {foodTags.length > 0 && (
           <div className="mb-3">
-            <p className="text-xs font-bold text-[#888] mb-2">🍽️ 投喂指南</p>
+            <p className="text-xs font-bold text-[#888] mb-2">{t.result.sectionFood}</p>
             <div className="flex flex-wrap gap-1.5">
               {foodTags.map((tag, i) => (
                 <span key={i} className="px-2.5 py-1 bg-[#C5E8C5] text-[#2D2D2D] rounded-full text-[11px] font-medium">
@@ -244,28 +277,35 @@ export default function ResultPage() {
 
         {/* 8. How to get along */}
         <div className="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-[#E8E0D8]">
-          <p className="text-xs font-bold text-[#888] mb-1">🤝 如何与本物种相处</p>
+          <p className="text-xs font-bold text-[#888] mb-1">{t.result.sectionGetAlong}</p>
           <p className="text-sm text-[#333] leading-relaxed">{main.how_to_get_along}</p>
         </div>
 
         {/* 9. Typical symptoms */}
         <div className="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-[#E8E0D8]">
-          <p className="text-xs font-bold text-[#888] mb-1">🔍 典型症状</p>
+          <p className="text-xs font-bold text-[#888] mb-1">{t.result.sectionSymptoms}</p>
           <p className="text-sm text-[#333] leading-relaxed">{main.typical_symptoms}</p>
         </div>
 
         {/* 10. Description */}
         <div className="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-[#E8E0D8]">
-          <p className="text-xs font-bold text-[#888] mb-1">📖 物种档案</p>
+          <p className="text-xs font-bold text-[#888] mb-1">{t.result.sectionProfile}</p>
           <p className="text-sm text-[#333] leading-relaxed">{main.description}</p>
         </div>
 
         {/* Branding footer for share image */}
         <div className="text-center pb-2">
-          <p className="text-[10px] text-[#bbb]">🐾 生活物种 · 发现你的动物人格</p>
+          <p className="text-[10px] text-[#bbb]">{t.result.branding}</p>
         </div>
       </div>
       {/* === End Capture Area === */}
+
+      {/* Demo mode notice (kept out of the capture area so it never lands in the share image) */}
+      {isPreview && (
+        <div className="mb-6 bg-[#FFF4DE] border border-[#F0DFB8] rounded-2xl p-4">
+          <p className="text-xs text-[#8A6D3B] leading-relaxed">{t.result.previewNotice}</p>
+        </div>
+      )}
 
       {/* Share image CTA */}
       <div className="mt-4 mb-6">
@@ -280,10 +320,10 @@ export default function ResultPage() {
             <span className="text-xl">📸</span>
             <div className="text-left">
               <p className="font-bold text-sm">
-                {shareLoading ? '正在生成分享图...' : shareImage ? '已生成分享图' : '一键生成分享长图'}
+                {shareLoading ? t.result.shareGenerating : shareImage ? t.result.shareGenerated : t.result.shareCta}
               </p>
               <p className="text-xs text-white/70">
-                {shareImage ? '点击查看 / 保存 / 分享' : '保存到相册或分享给朋友'}
+                {shareImage ? t.result.shareHintGenerated : t.result.shareHint}
               </p>
             </div>
           </div>
@@ -292,13 +332,13 @@ export default function ResultPage() {
 
       {/* Feedback */}
       <div className="mb-6">
-        <p className="text-xs text-[#888] font-medium mb-3 text-center">你觉得准吗？</p>
+        <p className="text-xs text-[#888] font-medium mb-3 text-center">{t.result.feedbackQuestion}</p>
         <div className="flex gap-2 justify-center">
-          {['完全不像', '有一点', '挺像', '太准了'].map((label, i) => {
+          {t.result.feedbackOptions.map((label, i) => {
             const rating = i + 1;
             return (
               <button
-                key={i}
+                key={label}
                 onClick={() => handleFeedback(rating)}
                 disabled={feedbackSent}
                 className={`px-3 py-2 rounded-xl text-xs font-medium transition-all duration-150
@@ -316,23 +356,25 @@ export default function ResultPage() {
         </div>
       </div>
 
-      {/* Share link CTA */}
+      {/* Share link CTA (a preview run has no permanent link to hand out) */}
+      {!isPreview && (
       <div className="text-center mb-8">
         <p className="text-xs text-[#888] mb-3">
-          分享给朋友，看看他们是什么物种
+          {t.result.shareLinkHint}
         </p>
         <button
           onClick={() => {
             const url = window.location.href;
             navigator.clipboard.writeText(url);
-            alert('结果链接已复制！');
+            alert(t.result.linkCopied);
           }}
           className="bg-[#2D2D2D] text-white px-6 py-3 rounded-2xl font-bold text-sm
                      active:scale-[0.98] transition-transform duration-150 shadow-md"
         >
-          复制结果链接
+          {t.result.copyLink}
         </button>
       </div>
+      )}
 
       {/* CTA to test */}
       <div className="text-center pb-8">
@@ -340,7 +382,7 @@ export default function ResultPage() {
           href="/test"
           className="inline-block text-sm text-[#2D2D2D] font-medium underline"
         >
-          测测我是什么生活物种
+          {t.result.takeTestCta}
         </Link>
       </div>
 
@@ -354,8 +396,8 @@ export default function ResultPage() {
           <div className="flex items-center gap-3">
             <span className="text-2xl">📊</span>
             <div className="text-left">
-              <p className="font-semibold text-sm text-[#2D2D2D]">物种分布图鉴</p>
-              <p className="text-xs text-[#888]">看看大家都在什么物种</p>
+              <p className="font-semibold text-sm text-[#2D2D2D]">{t.stats.title}</p>
+              <p className="text-xs text-[#888]">{t.stats.desc}</p>
             </div>
           </div>
         </button>
@@ -383,7 +425,7 @@ export default function ResultPage() {
           <div className="flex-1 flex items-center justify-center px-4 overflow-auto" onClick={(e) => e.stopPropagation()}>
             <img
               src={shareImage}
-              alt="分享长图"
+              alt={t.result.shareImageAlt}
               className="max-w-full max-h-full rounded-2xl shadow-2xl"
             />
           </div>
@@ -395,14 +437,14 @@ export default function ResultPage() {
               className="flex-1 py-3.5 rounded-2xl bg-white text-[#2D2D2D] font-bold text-sm
                          active:scale-[0.98] transition-transform duration-150"
             >
-              保存到相册
+              {t.result.saveToPhotos}
             </button>
             <button
               onClick={handleShare}
               className="flex-1 py-3.5 rounded-2xl bg-[#07C160] text-white font-bold text-sm
                          active:scale-[0.98] transition-transform duration-150"
             >
-              分享给朋友
+              {t.result.shareToFriend}
             </button>
           </div>
         </div>
