@@ -1,0 +1,8 @@
+# 以下为本仓库的素材存档与文档，部署只需要 public/assets/species 里的 24 张正式 PNG，故不随部署上传
+/species_assets/
+/species_assets_v1/
+/assets/
+/docs/
+/scratch/
+*.zip
+/ing 丨 0825 workbuddy探索/

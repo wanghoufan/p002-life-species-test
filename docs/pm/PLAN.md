@@ -3,7 +3,7 @@
 > 项目计划首版（neat-freak 2026-08-18，依据 AGENTS.md 与 life_species_coze_prompt_v1_3_FINAL.md 已验证事实）
 
 ## 1. 项目性质
-「扣子（COZE）编程」最终开发提示词 v1.3 交付包，**非完整代码仓库、无可运行态**。目标产出：带 Supabase 后端数据库的移动端优先 Web 网站（生活物种测试）。
+「扣子（COZE）编程」最终开发提示词 v1.3 交付包，同时含一份完整可运行的实现（`src/`，Next.js 16 + Supabase）。目标产出：带 Supabase 后端数据库的移动端优先 Web 网站（生活物种测试）。在线站点见 README。
 
 ## 2. Source of Truth（必须严格遵守）
 - 唯一正式评分事实源：`life_species_calibrated_scorer_v1.mjs`
@@ -24,7 +24,7 @@
 - 冗余副本已隔离至 `scratch/species_assets_v1 - 副本/`
 
 ## 5. 下一步（PRODUCT_BACKLOG）
-- 由 COZE 编程按提示词落地为可运行网站（本包为规格，不含实现）
+- 为线上站点自备 Supabase 项目：建 5 张表 + 灌 24 条 `species_content`，并把三个凭据配进部署环境（当前站点未配，提交类接口不可用）
 - 验收以评分器测试与 manifest 映射为准
 
 ## 6. 验收基线
