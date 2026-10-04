@@ -31,7 +31,7 @@
 ## 项目性质
 - 本项目是「扣子（COZE）编程」的**最终开发提示词 v1.3 交付包**，同时含一份完整可运行的 Next.js 16 + Supabase MVP（在线站点：https://p002-life-species-test.vercel.app ，Vercel 托管；原扣子预览站已停用）。
 - 目标产出：带 Supabase 后端数据库的移动端优先 Web 网站（生活物种测试）。
-- 当前状态：提示词与素材 DONE；站点已上线，但运行环境未配 Supabase 凭据，提交/结果页/图鉴接口不可用（详见 `docs/handoff/HANDOFF.md` §8）。
+- 当前状态：提示词与素材 DONE；站点已上线（中英双语）。运行环境仍未配 Supabase 凭据——答题与出结果走「演示模式」（本机算分、不落库、无永久链接），只有物种分布图鉴不可用（详见 `docs/handoff/HANDOFF.md` §8、§9）。
 
 ## 项目结构事实
 - 主需求 / 开发规范：`docs/pm/life_species_coze_prompt_v1_3_FINAL.md`（COZE 提示词 v1.3，唯一权威）

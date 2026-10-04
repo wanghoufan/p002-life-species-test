@@ -10,7 +10,7 @@
 - 主需求 / 开发规范：`docs/pm/life_species_coze_prompt_v1_3_FINAL.md`（原根目录文件，按规范归入 `docs/pm/`，保留原名）。
 - 24 张正式角色 PNG 与 3 个拆分 ZIP 为交付素材，均保留。
 - 在线站点：https://p002-life-species-test.vercel.app （Vercel 项目 `houfan/p002-life-species-test`，接 GitHub `wanghoufan/p002-life-species-test`，push main 即构建）。原扣子托管预览站已停用。
-- **未闭环**：站点运行环境没有任何 Supabase 凭据（Vercel 环境变量 0 个），因此提交答案、结果页、分享链接、物种图鉴接口返回 500；首页与答题流程不受影响。详见 §8。
+- **未闭环**：站点运行环境没有任何 Supabase 凭据（Vercel 环境变量 0 个），所以 `/api/runs/*`、`/api/results/*`、`/api/stats` 仍返回 500。前端已补「演示模式」兜住主流程（见 §9）：答题、出结果、生成分享长图都能用；**仍然不可用的是物种分布图鉴，以及别人打开你的结果链接**。详见 §8、§9。
 
 ## 3. 技术栈 / Source of Truth（来自提示词）
 - 目标架构：Supabase / PostgreSQL 后端 + 移动端优先 Web；前端页面 `/`、`/test`、`/r/{share_code}`。
@@ -63,7 +63,17 @@
 - **治理三件套**：AGENTS.md 的 ORCA 区块同步到母版 `2026-10-03-汇报与自决`，`GOVERNANCE-STATE.json` 的 `rules_version` / `synced_at` 同步，`docs/roles/{supervisor,task-manager}.md` 补汇报抽查与自决口径；账本校验 `node scripts/model/check-ledger.mjs docs/model` → `LEDGER-OK`（含 WARN，两本账仍为空账本，首个真实派工前正常）；本节即三件套第 ③ 条的 HANDOFF 记行。
 - **实测基线**（本机 Node 24.19 / pnpm）：`pnpm install`、`pnpm dev`（5000 端口，`/` 与 `/test` 均 200）、`pnpm build`、`pnpm ts-check` 通过；`node life_species_calibrated_scorer_test_v1.mjs` → 24/24、deterministic、crossFamilySecondary、inputValidation、`Status: PASS`。
 - **残留与待决（不卡本次目标，登记备查）**：
-  - 后端未闭环：Vercel 无 Supabase 凭据 → 提交/结果页/分享/图鉴 500。需要新建 Supabase 项目 + 5 张表（`test_runs`、`test_answers`、`result_snapshot`、`species_content`、`feedback`）+ 24 条种子数据，再配三个环境变量；仓库内无建表 SQL，需按提示词 v1.3 自行编写。
+  - 后端未闭环：Vercel 无 Supabase 凭据 → 图鉴接口 500、结果无永久链接（主流程已由 §9 的演示模式兜住）。需要新建 Supabase 项目 + 5 张表（`test_runs`、`test_answers`、`result_snapshot`、`species_content`、`feedback`）+ 24 条种子数据，再配三个环境变量；仓库内无建表 SQL，需按提示词 v1.3 自行编写。
+  - 结果页「给结果打分」四档按钮只设前端状态，未调用 `/api/runs/{runId}/feedback`，评分不入库（接口本身已实现）。
   - `docs/model/GOVERNANCE-STATE.json` 的 `product_acceptance_ac_added` 仍为未完成态：实绩 Plan 缺「视觉与交互验收标准（AC 编号）＋关键 AC 集合＋发布类型」，按 AGENTS 属「存量项目待办，不自动做」，需项目 TM 判断。
   - `ing 丨 0825 workbuddy探索/`（约 14MB、721 个文件）是与本项目无关的外部探索素材，未入库也未忽略，处置权在用户。
+
+## 9. 多语言上线（2026-10-04）
+
+- 站点支持中文 / English：默认跟随浏览器语言（`zh*` → 中文，其余 → 英文），右上角可手动切换，选择记在 `localStorage.life_species_locale`，并同步 `<html lang>`。
+- 实现集中在 `src/i18n/`：`locale.tsx`、`ui.ts`、`questions.ts`（中英题库，选项顺序与中文严格一一对应）、`species-en.ts`（24 条物种英文文案，按 `species_key` 覆盖，未命中回落中文）、`LanguageToggle.tsx`。
+- **不碰事实源**：`life_species_calibrated_scorer_v1.mjs`、`life_species_supabase_seed_manifest_v1.json`、24 张 PNG 文件名与 `species_key` 均未改动；同一份答案两种语言得到同一物种。
+- 实测：`pnpm ts-check` 与 `next build` 通过；eslint 错误数与改动前基线一致（40，均为既有 `no-explicit-any`）；浏览器实测中/EN 双向切换、题目与选项、进度点提示、结果页错误态、图鉴文案均为对应语言，388px 窄屏无溢出与重叠；脚本核对 manifest 24 键与英文文案 24 条完全对齐、选项数一致、`zh` 分支原样透传。
+- 结果页物种文案的英文路径**未经线上运行验证**（数据库仍未接），只做了函数级验证。
+- 同日补「演示模式」通道（`POST /api/runs/preview` + `src/lib/preview-result.ts`）：数据库不可用时答题页自动回退，用正式评分器当场出结果、结果页可看可出分享长图，但不落库、无永久链接、关标签页即失。浏览器实测：`/api/runs/start` 500 → 自动跳 `/r/preview`，英文结果页主物种 Life Documentary、副物种 Dopamine Beast / Food Hunter、三张物种 PNG 全部加载、388px 零溢出、复制链接按钮按预期隐藏。分享长图已用 headless Chromium（CDP）跑通：提交后自动跳 `/r/preview`，点「Create a share image」0.5 秒出图，尺寸 750×2592、约 0.38 MB PNG，图内全英文、三张物种 PNG 正常渲染、演示模式提示不在截图区内。（此前在 in-app 浏览器里卡住是该标签 `visibilityState=hidden` 被限流所致，非代码问题。）
 
