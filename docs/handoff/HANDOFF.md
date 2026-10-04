@@ -77,3 +77,10 @@
 - 结果页物种文案的英文路径**未经线上运行验证**（数据库仍未接），只做了函数级验证。
 - 同日补「演示模式」通道（`POST /api/runs/preview` + `src/lib/preview-result.ts`）：数据库不可用时答题页自动回退，用正式评分器当场出结果、结果页可看可出分享长图，但不落库、无永久链接、关标签页即失。浏览器实测：`/api/runs/start` 500 → 自动跳 `/r/preview`，英文结果页主物种 Life Documentary、副物种 Dopamine Beast / Food Hunter、三张物种 PNG 全部加载、388px 零溢出、复制链接按钮按预期隐藏。分享长图已用 headless Chromium（CDP）跑通：提交后自动跳 `/r/preview`，点「Create a share image」0.5 秒出图，尺寸 750×2592、约 0.38 MB PNG，图内全英文、三张物种 PNG 正常渲染、演示模式提示不在截图区内。（此前在 in-app 浏览器里卡住是该标签 `visibilityState=hidden` 被限流所致，非代码问题。）
 
+## 10. 上线记录（2026-10-04）
+
+- 双语 + 演示模式两笔提交已推 `origin/main`，Vercel git 生产构建 `READY`，生产别名指向该次构建。
+- 线上实测（headless Chromium，系统语言 `en-US`）：不做任何手动设置，首页即英文（跟随系统生效）；答题 → 提交自动跳 `/r/preview` → 主物种 Life Documentary、演示提示在、复制链接按钮已隐藏、分享长图 880×2342 生成成功；`POST /api/runs/preview` 返回 200。
+- 线上 `/api/stats` 仍 500（预期：物种分布图鉴需要数据库）。
+
+
