@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useLocale } from '@/i18n/locale';
 import { UI, fmt } from '@/i18n/ui';
 import { speciesName } from '@/i18n/species-en';
+import { asset } from '@/lib/asset';
 
 interface SpeciesStat {
   speciesKey: string;
@@ -123,7 +124,7 @@ export default function StatsModal({
                 >
                   <div className="w-12 h-12 rounded-xl bg-[#FFF8F0] flex-shrink-0 overflow-hidden border border-[#E8E0D8]">
                     <img
-                      src={s.imageUrl}
+                      src={asset(s.imageUrl)}
                       alt={name}
                       className="w-full h-full object-contain"
                     />

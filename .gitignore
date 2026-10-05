@@ -36,3 +36,6 @@ tsconfig.tsbuildinfo
 
 # Project Steward 机器身份文件：含本机绝对路径，仓库是公开的，不入库
 .project.yaml
+
+# GitHub Pages 静态导出产物（Actions 构建生成，不入库）
+out/

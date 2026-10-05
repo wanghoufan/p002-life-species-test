@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLocale } from '@/i18n/locale';
 import { UI, fmt } from '@/i18n/ui';
 import { QUESTIONS } from '@/i18n/questions';
+import { buildPreviewResult } from '@/lib/client-preview';
 import LanguageToggle from '@/i18n/LanguageToggle';
 
 export default function TestPage() {
@@ -149,13 +150,20 @@ export default function TestPage() {
           body: JSON.stringify({ answers: formattedAnswers }),
         });
         if (!previewRes.ok) throw new Error('preview failed');
-
         sessionStorage.setItem('life_species_preview', JSON.stringify(await previewRes.json()));
-        localStorage.removeItem('life_species_test');
-        router.push('/r/preview');
       } catch {
-        setError(t.test.errSubmit);
+        // GitHub Pages 静态镜像没有 API 路由：在浏览器本机跑同一评分器出结果
+        try {
+          const localResult = await buildPreviewResult(formattedAnswers);
+          sessionStorage.setItem('life_species_preview', JSON.stringify(localResult));
+        } catch {
+          setError(t.test.errSubmit);
+          setLoading(false);
+          return;
+        }
       }
+      localStorage.removeItem('life_species_test');
+      router.push('/r/preview');
     } finally {
       setLoading(false);
     }
